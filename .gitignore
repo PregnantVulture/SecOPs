@@ -1,0 +1,9 @@
+# Environment variables & API keys
+.env.local
+.env
+*.env
+venv/
+env/
+__pycache__/
+*.pyc
+.DS_Store
