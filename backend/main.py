@@ -64,8 +64,8 @@ async def start_agent_run(
         "findings": [],
         "scope_violations": []
     }
-
-    # Start the agent loop in the background
+#confusedS
+    # Start the agent loop in the backgroundS
     asyncio.create_task(run_agent_loop(run_id, agent))
 
     return {
