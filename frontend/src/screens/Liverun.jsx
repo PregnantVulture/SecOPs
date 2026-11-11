@@ -1,32 +1,15 @@
-function LiveRun({ target = "http://localhost:3000", events = [] }) {
-  const demoEvents = [
-    {
-      time: "00:01",
-      tool: "SYSTEM",
-      message: "Security assessment initialized.",
-      status: "success",
-    },
-    {
-      time: "00:02",
-      tool: "NMAP",
-      message: "Host discovery started.",
-      status: "running",
-    },
-    {
-      time: "00:03",
-      tool: "AGENT",
-      message: "Analyzing discovered services.",
-      status: "running",
-    },
-    {
-      time: "00:04",
-      tool: "ZAP",
-      message: "Waiting for web scan results.",
-      status: "pending",
-    },
-  ];
+import { mockEvents } from '../mock/mockData';
 
-  const logs = events.length ? events : demoEvents;
+function LiveRun({ target = "http://localhost:3000", events = [] }) {
+  const logs = events.length ? events : mockEvents;
+
+  const statusColors = {
+    success: 'text-green-400',
+    running: 'text-yellow-400',
+    pending: 'text-slate-400',
+    blocked: 'text-red-400',
+    failed: 'text-red-400',
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6">
@@ -86,7 +69,7 @@ function LiveRun({ target = "http://localhost:3000", events = [] }) {
                   {event.message}
                 </p>
 
-                <span className="text-xs text-slate-400">
+                <span className={`text-xs ${statusColors[event.status] || 'text-slate-400'}`}>
                   Status: {event.status}
                 </span>
               </div>
@@ -102,7 +85,7 @@ function LiveRun({ target = "http://localhost:3000", events = [] }) {
               <p className="text-sm text-slate-400">Host discovery</p>
             </div>
             <div className="bg-slate-800 p-4 rounded-lg">
-              <p className="text-cyan-400 font-bold">OWASP ZAP</p>
+              <p className="text-cyan-400 font-bold">NUCLEI</p>
               <p className="text-sm text-slate-400">Web scanning</p>
             </div>
           </div>
