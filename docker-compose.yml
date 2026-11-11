@@ -1,0 +1,23 @@
+# SecOP lab: backend + OWASP ZAP + Juice Shop practice target.
+# Usage: cp .env.example .env  (fill in values)  then  docker compose up --build
+# Inside this network the practice target is http://juice-shop:3000 (put "juice-shop" in the scope file).
+services:
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    env_file: .env
+    environment:
+      ZAP_API_URL: http://zap:8090
+    ports: ["8000:8000"]
+    depends_on: [zap]
+
+  zap:
+    image: zaproxy/zap-stable
+    command: >
+      zap.sh -daemon -host 0.0.0.0 -port 8090
+      -config api.key=${ZAP_API_KEY:?set ZAP_API_KEY in .env}
+      -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    ports: ["127.0.0.1:8090:8090"]
+
+  juice-shop:
+    image: bkimminich/juice-shop
+    ports: ["127.0.0.1:3000:3000"]
