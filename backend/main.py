@@ -47,19 +47,10 @@ async def start_agent_run(
     # Initialize and start the agent loop
     agent = AgentLoop(
         target=target,
-        scope_file=scope_file or "scope.txt",
+        scope_file=scope_file or "backend/scope.json",
         objective=objective,
         max_steps=max_steps
     )
-
-    # Sync agent guard with registry global guard (defense in depth)
-    from backend.tools.registry import _registry_guard
-    agent_guard = agent.state.guard
-    _registry_guard.allowed_hosts = agent_guard.allowed_hosts.copy()
-    _registry_guard.allowed_networks = agent_guard.allowed_networks.copy()
-    _registry_guard.allowed_ports = agent_guard.allowed_ports.copy()
-    _registry_guard.allowed_actions = agent_guard.allowed_actions.copy()
-    _registry_guard.allow_multi_host = agent_guard.allow_multi_host
 
     # Store agent reference and start state
     reports_db[run_id] = {
@@ -87,7 +78,7 @@ async def start_agent_run(
 async def run_agent_loop(run_id: str, agent: AgentLoop):
     """Run the agent loop in the background and store results."""
     try:
-        async for update in agent.run_step():
+        async for update in agent.run():
             if run_id in reports_db:
                 reports_db[run_id]["steps_completed"] = update.get("step", 0)
                 reports_db[run_id]["run_log"].append(update)

@@ -9,6 +9,7 @@ function App() {
     target: "",
     objective: "",
     scopeFile: "",
+    runId: "",
   });
 
   const handleStart = (config) => {
@@ -24,19 +25,19 @@ function App() {
 
       {currentScreen === "live" && (
         <>
-          <LiveRun target={scanConfig.target} />
+          <LiveRun target={scanConfig.target} runId={scanConfig.runId} />
 
-          <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700 p-4 flex justify-between">
+          <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700 p-4 flex justify-between z-50">
             <button
               onClick={() => setCurrentScreen("setup")}
-              className="bg-slate-700 text-white px-5 py-2 rounded-lg"
+              className="bg-slate-700 text-white px-5 py-2 rounded-lg hover:bg-slate-600 transition"
             >
               Back
             </button>
 
             <button
               onClick={() => setCurrentScreen("report")}
-              className="bg-cyan-500 text-slate-950 font-bold px-5 py-2 rounded-lg"
+              className="bg-cyan-500 text-slate-950 font-bold px-5 py-2 rounded-lg hover:bg-cyan-400 transition"
             >
               View Report →
             </button>
@@ -46,19 +47,19 @@ function App() {
 
       {currentScreen === "report" && (
         <>
-          <Report target={scanConfig.target} />
+          <Report target={scanConfig.target} runId={scanConfig.runId} />
 
-          <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700 p-4 flex justify-between">
+          <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700 p-4 flex justify-between z-50">
             <button
               onClick={() => setCurrentScreen("live")}
-              className="bg-slate-700 text-white px-5 py-2 rounded-lg"
+              className="bg-slate-700 text-white px-5 py-2 rounded-lg hover:bg-slate-600 transition"
             >
               ← Back to Live Run
             </button>
 
             <button
               onClick={() => setCurrentScreen("setup")}
-              className="bg-cyan-500 text-slate-950 font-bold px-5 py-2 rounded-lg"
+              className="bg-cyan-500 text-slate-950 font-bold px-5 py-2 rounded-lg hover:bg-cyan-400 transition"
             >
               New Assessment
             </button>
