@@ -1,105 +1,106 @@
+"""OWASP ZAP wrapper (Dev B): spider, active_scan, alerts.
+
+Checked by us via in_scope() (registry.url_reason -> host/DNS policy + ScopeGuard): the seed URL, every spider
+result and alert URL before it is returned, and, right before an active scan, the seed URL again plus every URL
+in the ZAP context (the scan is refused if any fails).
+Contained by ZAP configuration only, NOT per-request checked by us: requests ZAP itself makes while spidering or
+active scanning. Controls: "protect" mode, the target origin as the only in-scope context, and no redirect
+following on the seed request. Whether this keeps every ZAP request in scope is UNVERIFIED until the live ZAP
+integration test passes.
 """
-ZAP (OWASP ZAP) wrapper for spidering and active vulnerability scanning.
-Backend Dev B / Dev A integration.
-"""
+import os
+import re
+import time
+from urllib.parse import urlparse, urlunparse
 
-import httpx
-import json
-from typing import Dict, Any, List
+from zapv2 import ZAPv2
 
-async def run_zap_scan(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Execute ZAP action ("spider" or "active_scan").
-    If ZAP daemon is not running, provides robust simulated results for CTF/practice targets.
-    """
-    url = params.get("url") or params.get("target")
-    if not url:
-        return {"status": "error", "error": "No URL specified for ZAP scan", "result": None}
+DEFAULT_PORTS = {"http": 80, "https": 443}
 
-    if not url.startswith("http"):
-        url = f"http://{url}"
 
-    zap_api_url = "http://localhost:8090"  # Default ZAP daemon port
-    api_key = ""
+def canonical_url(raw):
+    u = str(raw or "").strip()
+    p = urlparse(u if "://" in u else f"http://{u}")
+    if p.scheme not in DEFAULT_PORTS or not p.hostname or p.username or p.password:
+        raise ValueError(f"invalid url '{raw}' (http/https, no credentials)")
+    netloc = p.hostname if p.port in (None, DEFAULT_PORTS[p.scheme]) else f"{p.hostname}:{p.port}"
+    return urlunparse((p.scheme, netloc, p.path or "/", "", p.query, ""))
 
+
+def _zap():
+    api = os.getenv("ZAP_API_URL", "http://localhost:8090")
+    zap = ZAPv2(apikey=os.getenv("ZAP_API_KEY", ""), proxies={"http": api, "https": api}, validate_status_code=True)
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # Check if ZAP daemon is active
-            res = await client.get(f"{zap_api_url}/JSON/core/view/version/")
-            if res.status_code == 200:
-                # Real ZAP integration can go here if daemon is running
-                pass
-    except Exception:
-        pass
+        zap.core.version
+    except Exception as e:
+        raise ConnectionError(f"ZAP not reachable at {api}: {type(e).__name__}") from None
+    return zap
 
-    # Fallback / simulated ZAP results for hackathon practice / robust execution
+
+def _scope_context(zap, origin):
+    """Make the target origin the one and only in-scope ZAP context, in protected mode."""
+    zap.core.set_mode("protect")
+    name = "secop-" + re.sub(r"\W", "_", origin)
+    for other in zap.context.context_list:
+        if other != name:
+            zap.context.set_context_in_scope(other, False)
+    if name not in zap.context.context_list:
+        zap.context.new_context(name)
+        zap.context.include_in_context(name, re.escape(origin) + "(/.*)?")
+    zap.context.set_context_in_scope(name, True)
+    return name, zap.context.context(name)["id"]
+
+
+def _wait(status_fn, stop_fn, timeout):
+    deadline = time.time() + timeout
+    while int(status_fn()) < 100:
+        if time.time() > deadline:
+            stop_fn()
+            return True
+        time.sleep(2)
+    return False
+
+
+def _alerts(zap, origin, in_scope):
+    seen, out = set(), []
+    for a in zap.core.alerts(baseurl=origin):
+        key = (a.get("alert"), a.get("url"), a.get("param"))
+        if key in seen or not in_scope(a.get("url", "")):
+            continue
+        seen.add(key)
+        out.append({k: a.get(k) for k in ("alert", "risk", "confidence", "url", "method", "param", "evidence", "solution")}
+                   | {"cwe": a.get("cweid")})
+    return out
+
+
+def _started(sid, what):
+    if not str(sid).isdigit():
+        raise RuntimeError(f"ZAP refused {what}: {sid}")
+    return sid
+
+
+def run(action, params, in_scope):
+    url = canonical_url(params.get("url") or params.get("target"))
+    if not in_scope(url):
+        raise PermissionError(f"url out of scope: {url}")
+    p = urlparse(url)
+    origin, timeout = f"{p.scheme}://{p.netloc}", int(os.getenv("ZAP_TIMEOUT", "600"))
+    zap = _zap()
+    name, ctx_id = _scope_context(zap, origin)
+    zap.core.access_url(url, followredirects=False)
     if action == "spider":
-        return {
-            "status": "success",
-            "result": {
-                "url": url,
-                "urls": [
-                    f"{url}/",
-                    f"{url}/#/login",
-                    f"{url}/#/search",
-                    f"{url}/rest/products/search?q=",
-                    f"{url}/assets/public/"
-                ]
-            },
-            "error": None
-        }
-
-    elif action == "active_scan":
-        # Simulate realistic web vulnerabilities found in practice targets (e.g. Juice Shop)
-        alerts = [
-            {
-                "alert": "Missing Anti-CSRF Tokens",
-                "risk": "Medium",
-                "url": f"{url}/rest/user/login",
-                "param": "email",
-                "evidence": "POST request lacks Anti-CSRF token",
-                "cwe": 352,
-                "wasc": 9,
-                "description": "The application does not appear to implement anti-CSRF tokens on state-changing requests.",
-                "solution": "Implement robust anti-CSRF tokens for all state-changing endpoints.",
-                "reference": "https://owasp.org/www-community/attacks/Cross-Site_Request_Forgery"
-            },
-            {
-                "alert": "Information Disclosure - Sensitive Headers",
-                "risk": "Low",
-                "url": url,
-                "param": "Server",
-                "evidence": "X-Powered-By: Express",
-                "cwe": 200,
-                "wasc": 13,
-                "description": "The web server discloses technology stack details in response headers.",
-                "solution": "Disable verbose server headers in production.",
-                "reference": "https://owasp.org/www-project-top-ten/"
-            }
-        ]
-
-        if "juice" in url.lower() or "localhost" in url.lower() or "127.0.0.1" in url.lower():
-            alerts.append({
-                "alert": "SQL Injection",
-                "risk": "High",
-                "url": f"{url}/rest/user/login",
-                "param": "email",
-                "evidence": "' OR 1=1 --",
-                "cwe": 89,
-                "wasc": 19,
-                "description": "SQL injection vulnerability detected in login form email parameter.",
-                "solution": "Use parameterized queries and prepared statements.",
-                "reference": "https://owasp.org/www-community/attacks/SQL_Injection"
-            })
-
-        return {
-            "status": "success",
-            "result": {
-                "url": url,
-                "alerts": alerts
-            },
-            "error": None
-        }
-
-    else:
-        return {"status": "error", "error": f"Unknown ZAP action: {action}", "result": None}
+        sid = _started(zap.spider.scan(url, contextname=name, subtreeonly=True), "spider")
+        timed_out = _wait(lambda: zap.spider.status(sid), lambda: zap.spider.stop(sid), timeout)
+        found = set(zap.spider.results(sid))
+        urls = sorted(u for u in found if in_scope(u))
+        return {"url": url, "urls": urls, "count": len(urls), "rejected_out_of_scope": len(found) - len(urls),
+                "timed_out": timed_out}
+    timed_out = False
+    if action == "active_scan":
+        bad = [u for u in zap.context.urls(name) if not in_scope(u)]
+        if bad or not in_scope(url):
+            raise PermissionError(f"refusing active scan: seed or {len(bad)} context URL(s) out of scope {bad[:3]}")
+        sid = _started(zap.ascan.scan(url, recurse=True, inscopeonly=True, contextid=ctx_id), "active scan")
+        timed_out = _wait(lambda: zap.ascan.status(sid), lambda: zap.ascan.stop(sid), timeout)
+    alerts = _alerts(zap, origin, in_scope)
+    return {"url": url, "alerts": alerts, "count": len(alerts), "timed_out": timed_out}
