@@ -7,7 +7,10 @@ import React from 'react';
  * - target: string
  * - events: Array<{ time: string, tool: string, message: string, status: string }>
  * - onAbort?: () => void
+ * 
+ * 
  */
+
 export default function LiveRunPhone({
   target = "https://api.staging.acme-corp.internal",
   events = [],
