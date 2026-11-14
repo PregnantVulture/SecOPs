@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecOP // Live Pentest Run</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #07090D;
+    --panel-bg: rgba(13, 18, 25, 0.85);
+    --border-color: rgba(30, 41, 59, 0.8);
+    --neon-green: #00FF9D;
+    --neon-cyan: #00F0FF;
+    --neon-pink: #FF2E93;
+    --neon-pink-soft: rgba(255, 46, 147, 0.15);
+  }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #E2E8F0;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-image: 
+      radial-gradient(circle at 15% 15%, rgba(0, 255, 157, 0.035) 0%, transparent 40%),
+      radial-gradient(circle at 85% 75%, rgba(255, 46, 147, 0.03) 0%, transparent 40%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+  }
+  .font-mono-tech {
+    font-family: 'Fira Code', monospace;
+  }
+  /* Custom scrollbar for reasoning terminal feed */
+  .terminal-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .terminal-scroll::-webkit-scrollbar-track {
+    background: rgba(10, 14, 20, 0.6);
+  }
+  .terminal-scroll::-webkit-scrollbar-thumb {
+    background: rgba(45, 55, 72, 0.8);
+    border-radius: 3px;
+  }
+  .terminal-scroll::-webkit-scrollbar-thumb:hover {
+    background: #00FF9D;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(1.15); }
+  }
+  .ping-dot {
+    animation: pulseGlow 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(1000%); }
+  }
+  .scanline-overlay {
+    position: relative;
+    overflow: hidden;
+  }
+  .scanline-overlay::after {
+    content: " ";
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 157, 0.15), transparent);
+    animation: scanline 8s linear infinite;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body class="p-3 sm:p-5 flex flex-col justify-start">
+  <!-- Layout Header -->
+  <header class="w-full flex items-center justify-between pb-3.5 mb-4 border-b border-slate-800/80">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-[#00FF9D] font-mono-tech font-bold text-sm tracking-wider shadow-[0_0_12px_rgba(0,255,157,0.2)]">
+        &gt;_
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-base font-extrabold tracking-wider text-white">SecOP</span>
+          <span class="text-xs font-mono-tech text-slate-500">/</span>
+          <span class="text-xs font-mono-tech uppercase tracking-widest text-[#00FF9D] font-semibold">Live Run</span>
+        </div>
+        <div class="text-[10px] font-mono-tech text-slate-400">SESSION: <span class="text-slate-300">#PENTEST-9021-ALPHA</span></div>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <!-- Live Badge with Ping Dot -->
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,157,0.15)]">
+        <span class="h-2 w-2 rounded-full bg-[#00FF9D] ping-dot"></span>
+        <span class="text-[11px] font-mono-tech font-bold tracking-wider text-[#00FF9D]">LIVE DEMO</span>
+      </div>
+      <button class="hidden sm:inline-flex px-2.5 py-1 rounded text-xs font-mono-tech bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white transition-colors">
+        ABORT RUN
+      </button>
+    </div>
+  </header>
+
+  <!-- Dual Layout Container: Responsive layout handles Desktop (2 columns) & Mobile (stacked top target/tools then reasoning) -->
+  <div class="w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row gap-4 flex-1">
+    
+    <!-- MOBILE ORDER 2 / DESKTOP LEFT PANEL: AGENT REASONING FEED (65% width on desktop) -->
+    <section class="order-2 lg:order-1 flex-1 lg:w-[65%] flex flex-col bg-[#0D1219]/90 border border-slate-800 rounded-lg p-3.5 sm:p-4 scanline-overlay shadow-2xl">
+      <!-- Feed Header bar -->
+      <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800/80">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-[#00FF9D]"></div>
+          <h2 class="text-xs sm:text-sm font-bold tracking-wide text-slate-200 uppercase font-mono-tech">
+            Agent Reasoning Feed
+          </h2>
+          <span class="text-[10px] font-mono-tech px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">14 EVENTS</span>
+        </div>
+        <div class="flex items-center gap-2 text-[11px] font-mono-tech text-slate-400">
+          <span class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active</span>
+          <span class="inline-flex items-center gap-1 ml-2"><span class="w-1.5 h-1.5 rounded-full bg-[#FF2E93]"></span> Blocked</span>
+        </div>
+      </div>
+
+      <!-- Feed Container (Scrollable within its own box) -->
+      <div class="terminal-scroll overflow-y-auto max-h-[460px] lg:max-h-[580px] pr-1.5 space-y-2.5 font-mono-tech text-xs">
+        
+        <!-- Entry 1: Current In-Flight Execution (Running) -->
+        <div class="p-3 rounded bg-slate-900/90 border-l-4 border-l-[#00FF9D] border border-slate-800/70 shadow-[0_0_15px_rgba(0,255,157,0.06)]">
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-[#00F0FF] border border-cyan-500/30">NUCLEI</span>
+              <span class="text-[11px] text-slate-400">TID: 0x884F</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="h-1.5 w-1.5 rounded-full bg-[#00FF9D] ping-dot"></span>
+              <span class="text-[10px] text-[#00FF9D] font-bold uppercase">RUNNING</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:02:18.420</span>
+            </div>
+          </div>
+          <p class="text-slate-200 text-xs leading-relaxed">
+            Executing template scan against <code class="text-[#00F0FF] bg-slate-950 px-1 py-0.5 rounded">/api/v2/auth/verify</code> for CVE-2023-38606 JWT algorithm confusion vulnerability.
+          </p>
+          <div class="mt-2 text-[11px] text-emerald-400/90 bg-emerald-950/20 px-2 py-1 rounded border border-emerald-900/40 flex items-center justify-between">
+            <span>&gt; Sub-threads: 16 active | Fuzz payload buffer: 78%</span>
+            <span class="animate-pulse text-[#00FF9D]">Evaluating response tokens...</span>
+          </div>
+        </div>
+
+        <!-- Entry 2: SCOPE VIOLATION (BLOCKED - Distinct Visual Moment using secondary Pink Accent) -->
+        <div class="p-3 rounded bg-[#160B12]/85 border-l-4 border-l-[#FF2E93] border border-[#FF2E93]/40 shadow-[0_0_18px_rgba(255,46,147,0.15)] relative overflow-hidden">
+          <div class="absolute right-0 top-0 translate-x-2 -translate-y-2 opacity-10 text-5xl font-extrabold text-[#FF2E93] pointer-events-none">
+            !
+          </div>
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF2E93]/20 text-[#FF2E93] border border-[#FF2E93]/50">SCOPE</span>
+              <span class="text-[11px] text-pink-300/80 font-bold">GUARDRAIL INTERVENTION</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="h-1.5 w-1.5 rounded-full bg-[#FF2E93]"></span>
+              <span class="text-[10px] text-[#FF2E93] font-bold uppercase tracking-wide">BLOCKED</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:02:12.108</span>
+            </div>
+          </div>
+          <p class="text-pink-100 text-xs leading-relaxed font-semibold">
+            Autonomous traversal attempted jump to third-party identity provider: <code class="text-white bg-pink-950/80 px-1 py-0.5 rounded border border-pink-700/50">auth.partner-cloud.net</code>.
+          </p>
+          <div class="mt-2 text-[11px] text-pink-300 bg-pink-950/40 p-2 rounded border border-pink-800/40 flex items-start gap-1.5">
+            <span class="text-[#FF2E93] font-bold">REASON:</span>
+            <span>Target outside explicitly defined assessment scope (*.acme-corp.internal). Agent autonomously pruned branch and returned to target perimeter.</span>
+          </div>
+        </div>
+
+        <!-- Entry 3: AGENT Reasoning Step (Success) -->
+        <div class="p-3 rounded bg-slate-900/60 border-l-4 border-l-slate-600 border border-slate-800/60">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-950/60 text-purple-300 border border-purple-500/30">AGENT</span>
+              <span class="text-[11px] text-slate-400">REASONING CORE v4.1</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-emerald-400 font-bold">DECIDED</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:02:04.912</span>
+            </div>
+          </div>
+          <p class="text-slate-300 text-xs leading-relaxed">
+            Nmap reported open port 8443 (mTLS disabled). Formulating hypothesis: API documentation endpoint exposes GraphQL schema with introspection permitted.
+          </p>
+        </div>
+
+        <!-- Entry 4: TAVILY OSINT Search (Success) -->
+        <div class="p-3 rounded bg-slate-900/60 border-l-4 border-l-emerald-500/80 border border-slate-800/60">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950/60 text-blue-300 border border-blue-500/30">TAVILY</span>
+              <span class="text-[11px] text-slate-400">OSINT RECON</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-emerald-400 font-bold">COMPLETED</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:01:49.030</span>
+            </div>
+          </div>
+          <p class="text-slate-300 text-xs leading-relaxed">
+            Queried public repositories &amp; dev leaks for <code class="text-cyan-300">"api.staging.acme-corp.internal"</code>. Discovered 2 archived OpenAPI 3.0 spec files with unauthenticated debug flags.
+          </p>
+        </div>
+
+        <!-- Entry 5: NMAP Port Scan (Success) -->
+        <div class="p-3 rounded bg-slate-900/60 border-l-4 border-l-emerald-500/80 border border-slate-800/60">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-[#00FF9D] border border-emerald-500/30">NMAP</span>
+              <span class="text-[11px] text-slate-400">SYN STEALTH</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-emerald-400 font-bold">COMPLETED</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:01:22.775</span>
+            </div>
+          </div>
+          <p class="text-slate-300 text-xs leading-relaxed">
+            Port sweep completed across 1000 standard ports. Open: <span class="text-[#00FF9D]">80/tcp</span> (HTTP/nginx 1.22.1), <span class="text-[#00FF9D]">443/tcp</span> (HTTPS/Cloudflare), <span class="text-[#00F0FF]">8443/tcp</span> (Envoy Proxy - dev bypass).
+          </p>
+        </div>
+
+        <!-- Entry 6: SYSTEM INITIALIZATION -->
+        <div class="p-3 rounded bg-slate-900/40 border-l-4 border-l-slate-700 border border-slate-800/40 opacity-75">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">SYSTEM</span>
+              <span class="text-[11px] text-slate-500">DAEMON INIT</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-slate-400 font-bold">READY</span>
+              <span class="text-[10px] text-slate-500 ml-1">14:01:00.001</span>
+            </div>
+          </div>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Initialized autonomous state graph. Sandboxed execution environment verified. Guardrails active (Max hops: 5, Rate limit: 25 req/s).
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Feed Status Footer -->
+      <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono-tech text-slate-400">
+        <div class="flex items-center gap-2">
+          <span class="h-2 w-2 rounded-full bg-[#00FF9D] animate-ping"></span>
+          <span class="text-slate-300">Live stream connected (WebSocket // latency 14ms)</span>
+        </div>
+        <div class="text-slate-500 hidden sm:block">AUTO-SCROLL: <span class="text-[#00FF9D]">LOCKED</span></div>
+      </div>
+    </section>
+
+    <!-- MOBILE ORDER 1 / DESKTOP RIGHT PANEL: TARGET + TOOLS (stacked, 35% on desktop) -->
+    <aside class="order-1 lg:order-2 flex flex-col gap-4 w-full lg:w-[35%]">
+      
+      <!-- TOP BOX: TARGET INFO & PROGRESS -->
+      <div class="bg-[#0D1219]/90 border border-slate-800 rounded-lg p-3.5 sm:p-4 shadow-xl relative overflow-hidden">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/80">
+          <div class="flex items-center gap-2">
+            <svg class="w-3.5 h-3.5 text-[#00FF9D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" stroke-width="2"></circle>
+              <path stroke-linecap="round" stroke-width="2" d="M12 7v5l3 3"></path>
+            </svg>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono-tech">Target Assessment</h3>
+          </div>
+          <span class="text-[10px] font-mono-tech px-2 py-0.5 rounded bg-emerald-950/60 text-[#00FF9D] border border-emerald-500/30">STAGE 3/5</span>
+        </div>
+
+        <!-- Target URL Box -->
+        <div class="mb-4 bg-slate-950/90 p-2.5 rounded border border-slate-800/90 font-mono-tech">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Target Endpoint</div>
+          <div class="text-xs text-white font-semibold flex items-center justify-between gap-1">
+            <span class="truncate text-[#00F0FF]">https://api.staging.acme-corp.internal</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">IN SCOPE</span>
+          </div>
+          <div class="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
+            <span>IP: 198.51.100.44</span>
+            <span>ASN: AS13335</span>
+            <span class="text-emerald-400">TLS 1.3</span>
+          </div>
+        </div>
+
+        <!-- Assessment Progress Visual Indicator -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-mono-tech">
+            <span class="text-slate-400">Attack Surface Coverage</span>
+            <span class="text-[#00FF9D] font-bold text-sm">68.4%</span>
+          </div>
+          <!-- Progress Bar with electric glow -->
+          <div class="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+            <div class="h-full bg-gradient-to-r from-emerald-500 via-[#00FF9D] to-[#00F0FF] rounded-full shadow-[0_0_12px_rgba(0,255,157,0.5)]" style="width: 68.4%"></div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 pt-2 text-center font-mono-tech">
+            <div class="bg-slate-950/60 p-1.5 rounded border border-slate-800/60">
+              <div class="text-[10px] text-slate-500">Endpoints</div>
+              <div class="text-xs text-slate-200 font-bold">24 / 35</div>
+            </div>
+            <div class="bg-slate-950/60 p-1.5 rounded border border-slate-800/60">
+              <div class="text-[10px] text-slate-500">Findings</div>
+              <div class="text-xs text-[#00FF9D] font-bold">3 High</div>
+            </div>
+            <div class="bg-slate-950/60 p-1.5 rounded border border-slate-800/60">
+              <div class="text-[10px] text-slate-500">Scope Guard</div>
+              <div class="text-xs text-[#FF2E93] font-bold">1 Enforced</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM BOX: SECURITY TOOLS MONITOR -->
+      <div class="bg-[#0D1219]/90 border border-slate-800 rounded-lg p-3.5 sm:p-4 shadow-xl flex-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/80">
+            <div class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+              </svg>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono-tech">Security Tools Orchestrator</h3>
+            </div>
+            <span class="text-[10px] font-mono-tech text-slate-400">3/4 ENGINES</span>
+          </div>
+
+          <!-- Tools List -->
+          <div class="space-y-2 font-mono-tech">
+            
+            <!-- Tool: NUCLEI (Running) -->
+            <div class="flex items-center justify-between p-2.5 rounded bg-slate-900/80 border border-cyan-500/30 shadow-[0_0_10px_rgba(0,240,255,0.06)]">
+              <div class="flex items-center gap-2.5">
+                <div class="h-2 w-2 rounded-full bg-[#00F0FF] ping-dot"></div>
+                <div>
+                  <div class="text-xs font-bold text-white tracking-wide">NUCLEI</div>
+                  <div class="text-[10px] text-slate-400">Vuln scanner &amp; templates</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-[#00F0FF] border border-cyan-500/40">RUNNING</span>
+                <div class="text-[9px] text-slate-500 mt-0.5">pid: 4091</div>
+              </div>
+            </div>
+
+            <!-- Tool: NMAP (Done) -->
+            <div class="flex items-center justify-between p-2.5 rounded bg-slate-900/60 border border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="h-2 w-2 rounded-full bg-emerald-500"></div>
+                <div>
+                  <div class="text-xs font-bold text-slate-200 tracking-wide">NMAP</div>
+                  <div class="text-[10px] text-slate-400">Port &amp; service fingerprint</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">DONE</span>
+                <div class="text-[9px] text-slate-500 mt-0.5">3 ports open</div>
+              </div>
+            </div>
+
+            <!-- Tool: TAVILY (Done) -->
+            <div class="flex items-center justify-between p-2.5 rounded bg-slate-900/60 border border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="h-2 w-2 rounded-full bg-emerald-500"></div>
+                <div>
+                  <div class="text-xs font-bold text-slate-200 tracking-wide">TAVILY</div>
+                  <div class="text-[10px] text-slate-400">Contextual OSINT agent</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">DONE</span>
+                <div class="text-[9px] text-slate-500 mt-0.5">2 artifacts</div>
+              </div>
+            </div>
+
+            <!-- Tool: SCOPE (Active Guardrail) -->
+            <div class="flex items-center justify-between p-2.5 rounded bg-slate-900/60 border border-[#FF2E93]/30">
+              <div class="flex items-center gap-2.5">
+                <div class="h-2 w-2 rounded-full bg-[#FF2E93]"></div>
+                <div>
+                  <div class="text-xs font-bold text-slate-200 tracking-wide">SCOPE_GUARD</div>
+                  <div class="text-[10px] text-pink-300/80">Boundary enforcement</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF2E93]/20 text-[#FF2E93] border border-[#FF2E93]/40">BLOCKED 1</span>
+                <div class="text-[9px] text-slate-500 mt-0.5">rule: out-of-scope</div>
+              </div>
+            </div>
+
+            <!-- Tool: METASPLOIT / EXPLOIT ENGINE (Idle/Pending) -->
+            <div class="flex items-center justify-between p-2.5 rounded bg-slate-950/40 border border-slate-800/50 opacity-60">
+              <div class="flex items-center gap-2.5">
+                <div class="h-2 w-2 rounded-full bg-slate-600"></div>
+                <div>
+                  <div class="text-xs font-bold text-slate-400 tracking-wide">POC_VERIFIER</div>
+                  <div class="text-[10px] text-slate-500">Exploit proof validation</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400">IDLE</span>
+                <div class="text-[9px] text-slate-600 mt-0.5">waiting stage 4</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Telemetry bar -->
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono-tech text-slate-400">
+          <span>THREAT LEVEL: <span class="text-[#FF2E93] font-bold">ELEVATED</span></span>
+          <span>RUNTIME: <span class="text-slate-200">00:03:42</span></span>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+</body>
+</html>
