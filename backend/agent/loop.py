@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 import httpx
 
 from backend.scope.guard import ScopeGuard, is_allowed
-from backend.agent.bifrost_client import call_llm_json, call_llm, LLMResponse
+from backend.agent.bifrost_client import BifrostClient
 
 
 @dataclass
@@ -61,6 +61,7 @@ def parse_llm_decision(content: str) -> Dict[str, Any]:
     Expected LLM output: JSON with keys:
     - 'thought': explanation of reasoning
     - 'tool_name': one of: nmap, zap, tavily, none
+    - 'tool_action': string action (e.g. port_scan, service_scan, spider, active_scan, research)
     - 'tool_args': dict of parameters for the tool
     - 'objective_complete': boolean
     """
@@ -81,6 +82,7 @@ def parse_llm_decision(content: str) -> Dict[str, Any]:
         # Set defaults
         decision.setdefault("thought", "Analyzing target...")
         decision.setdefault("tool_name", "none")
+        decision.setdefault("tool_action", "")
         decision.setdefault("tool_args", {})
         decision.setdefault("objective_complete", False)
 
@@ -94,6 +96,7 @@ def parse_llm_decision(content: str) -> Dict[str, Any]:
         return {
             "thought": f"Failed to parse LLM JSON response: {str(e)[:200]}",
             "tool_name": "none",
+            "tool_action": "",
             "tool_args": {},
             "objective_complete": False
         }
@@ -114,6 +117,12 @@ class AgentLoop:
     6. Emit Agent Decision (reasoning/tool_call/tool_result)
     7. Check if objective complete
     """
+
+    DEFAULT_ACTIONS = {
+        "nmap": "port_scan",
+        "zap": "spider",
+        "tavily": "research"
+    }
 
     def __init__(
         self,
@@ -140,47 +149,30 @@ class AgentLoop:
         self.bifrost_api_key = os.getenv("ANTHROPIC_API_KEY", "")
         self.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
 
-    def _get_llm_client(self) -> httpx.AsyncClient:
-        """Get configured HTTP client for LLM calls."""
-        return httpx.AsyncClient(
-            timeout=30.0,
-            headers={
-                "Authorization": f"Bearer {self.bifrost_api_key}",
-                "Content-Type": "application/json"
-            }
-        )
-
     async def _call_llm(self, messages: List[Dict[str, str]]) -> str:
         """Call LLM through Bifrost, return raw content string."""
-        async with self._get_llm_client() as client:
-            url = f"{self.bifrost_base_url}/chat/completions"
+        client = BifrostClient(
+            base_url=self.bifrost_base_url,
+            api_key=self.bifrost_api_key,
+            model=self.model
+        )
+        resp = await client.call_llm(messages, temperature=0.2)
+        if resp.error:
+            return f"LLM error: {resp.error}"
+        return resp.content
 
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": 0.2
-            }
+    async def run(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Run the agent loop autonomously up to max_steps."""
+        while self.state.step_count < self.max_steps:
+            completed = False
+            async for update in self._run_step():
+                yield update
+                if update.get("type") == "objective_complete":
+                    completed = True
+            if completed:
+                break
 
-            try:
-                response = await client.post(url, json=payload)
-                if response.status_code == 200:
-                    data = response.json()
-                    # Extract content from various formats
-                    content = ""
-                    if "choices" in data and data["choices"]:
-                        choice = data["choices"][0]
-                        if "message" in choice and "content" in choice["message"]:
-                            content = choice["message"]["content"]
-                        elif "text" in choice:
-                            content = choice["text"]
-
-                    return content if content else ""
-                else:
-                    return f"Llm error: HTTP {response.status_code}"
-            except Exception as e:
-                return f"Llm connection error: {str(e)}"
-
-    async def run_step(self) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _run_step(self) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Execute one step of the agent loop.
 
@@ -195,9 +187,10 @@ class AgentLoop:
             "Respond in strict JSON format with exactly these keys:\n"
             "- 'thought': string - your reasoning for this step\n"
             "- 'tool_name': string or 'none' - one of 'nmap', 'zap', 'tavily'\n"
-            "- 'tool_args': dict - parameters for the selected tool\n"
+            "- 'tool_action': string - action name (for nmap: 'port_scan' or 'service_scan'; for zap: 'spider' or 'active_scan' or 'alerts'; for tavily: 'research')\n"
+            "- 'tool_args': dict - parameters for the selected tool (e.g. {\"target\": \"...\"} or {\"url\": \"...\"})\n"
             "- 'objective_complete': boolean - true if you've achieved the objective\n\n"
-            "Example: {\"thought\": \"Checking open ports...\", \"tool_name\": \"nmap\", \"tool_args\": {\"target\": \"localhost\", \"ports\": \"1-1000\"}, \"objective_complete\": false}\n\n"
+            "Example: {\"thought\": \"Checking open ports...\", \"tool_name\": \"nmap\", \"tool_action\": \"port_scan\", \"tool_args\": {\"target\": \"localhost\", \"ports\": \"1-1000\"}, \"objective_complete\": false}\n\n"
             "Do NOT include any text outside the JSON object."
         )
 
@@ -205,7 +198,7 @@ class AgentLoop:
             f"Target: {self.target}\n"
             f"Objective: {self.objective}\n"
             f"Step {self.state.step_count} of {self.max_steps}\n"
-            f"Scope: {self.state.guard.get_scope_summary()}\n"
+            f"Scope: {json.dumps(self.state.guard.get_scope_summary(), default=str)}\n"
             f"History (last 5 steps): {json.dumps(self._get_recent_history())}\n"
             "Decide the next action."
         )
@@ -225,16 +218,18 @@ class AgentLoop:
             decision = {
                 "thought": f"LLM call failed: {str(e)[:200]}",
                 "tool_name": "none",
+                "tool_action": "",
                 "tool_args": {},
                 "objective_complete": False
             }
 
         # ── Step 3: Scope check ─────────────────────────────────────────────
         tool_name = decision.get("tool_name", "none")
+        tool_action = decision.get("tool_action") or self.DEFAULT_ACTIONS.get(tool_name, "port_scan")
         tool_args = decision.get("tool_args", {})
 
         # Always check scope first (defense in depth)
-        scope_result = self.state.guard.check(tool_name, "scan", tool_args)
+        scope_result = self.state.guard.check(tool_name, tool_action, tool_args)
 
         # Emit scope_blocked decision if not allowed
         if not scope_result["allowed"]:
@@ -244,7 +239,7 @@ class AgentLoop:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "data": {
                     "tool": tool_name,
-                    "action": "scan",
+                    "action": tool_action,
                     "reason": scope_result["reason"],
                     "params": tool_args,
                     "target": self.target
@@ -255,7 +250,7 @@ class AgentLoop:
             self.state.scope_violations.append({
                 "step": self.state.step_count,
                 "tool": tool_name,
-                "action": "scan",
+                "action": tool_action,
                 "params": tool_args,
                 "reason": scope_result["reason"]
             })
@@ -285,7 +280,6 @@ class AgentLoop:
 
         # ── Step 4: Check if no tool specified ──────────────────────────────
         if tool_name == "none" or tool_name is None:
-            # Check if objective might already be achieved or we need to finish
             yield {
                 "type": "reasoning",
                 "step": self.state.step_count,
@@ -297,7 +291,6 @@ class AgentLoop:
                 }
             }
 
-            # If all steps used
             if self.state.step_count >= self.max_steps:
                 yield self._finalize(
                     summary="Agent completed all steps without selecting a tool."
@@ -311,14 +304,14 @@ class AgentLoop:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": {
                 "tool": tool_name,
-                "action": "scan",
+                "action": tool_action,
                 "params": tool_args,
                 "target": self.target
             }
         }
 
-        # Run the tool via registry (will be implemented by Dev B)
-        tool_result = await self._execute_tool(tool_name, tool_args)
+        # Run the tool via registry with guard passed
+        tool_result = await self._execute_tool(tool_name, tool_action, tool_args)
 
         # ── Step 6: Interpret result & decide next ────────────────────────────
         self._process_tool_result(tool_name, tool_result)
@@ -330,7 +323,7 @@ class AgentLoop:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": {
                 "tool": tool_name,
-                "action": "scan",
+                "action": tool_action,
                 "status": tool_result.get("status", "error"),
                 "result": tool_result.get("result"),
                 "error": tool_result.get("error")
@@ -339,7 +332,6 @@ class AgentLoop:
 
         # ── Step 7: Check objective completion ──────────────────────────────
         if decision.get("objective_complete", False) or tool_result.get("status") == "error":
-            # Process any findings from this step
             yield self._finalize(
                 summary=tool_result.get("summary", decision.get("thought", "Objective assessment complete"))
             )
@@ -361,9 +353,8 @@ class AgentLoop:
         if tool_result.get("status") == "success" and tool_result.get("result"):
             result_data = tool_result["result"]
 
-            # Add to findings based on tool type
             if tool_name == "nmap":
-                ports = result_data.get("ports", [])
+                ports = result_data.get("ports", []) or result_data.get("open_ports", [])
                 for port_info in ports:
                     port = port_info.get("port")
                     service = port_info.get("service", "")
@@ -380,7 +371,6 @@ class AgentLoop:
                             "remediation": f"Review necessity of service on port {port}"
                         })
 
-                        # Add CVE if version info available
                         if version:
                             self.state.findings[-1]["title"] += f" (version: {version})"
 
@@ -400,22 +390,15 @@ class AgentLoop:
                         "remediation": alert.get("solution", "Apply suggested remediation")
                     })
 
-        elif tool_result.get("status") == "error":
-            # Log error but don't add findings
-            pass
-
-    async def _execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_tool(self, tool_name: str, tool_action: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Execute a tool through the registry.
-        This will be integrated with Dev B's tools/registry.py
+        Execute a tool through the registry passing self.state.guard.
         """
-        # Import here to avoid circular imports
         from backend.tools.registry import run_tool
 
-        # Build tool call (per schemas.md)
         tool_call = {
             "tool": tool_name,
-            "action": "scan",
+            "action": tool_action,
             "params": tool_args,
             "status": "pending",
             "result": None,
@@ -424,10 +407,9 @@ class AgentLoop:
         }
 
         try:
-            # Execute via registry - this also does scope check (defense in depth)
-            result = await run_tool(tool_call)
+            # Pass guard as second argument per registry signature
+            result = await run_tool(tool_call, self.state.guard)
 
-            # Registry returns a tool_call dict with status/result/error filled in
             return {
                 "status": result.get("status", "error"),
                 "result": result.get("result"),
@@ -450,7 +432,7 @@ class AgentLoop:
         result_data = result.get("result", {})
 
         if tool_name == "nmap":
-            ports = result_data.get("ports", [])
+            ports = result_data.get("ports", []) or result_data.get("open_ports", [])
             if ports:
                 return f"Found {len(ports)} open port(s)"
             return f"{tool_name} scan completed"
@@ -471,7 +453,6 @@ class AgentLoop:
 
         self.state.total_steps_completed = self.state.step_count
 
-        # Emit the final objective_complete decision
         return {
             "type": "objective_complete",
             "step": self.state.step_count,

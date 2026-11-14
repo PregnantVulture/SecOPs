@@ -1,120 +1,69 @@
-"""
-Nmap wrapper using python-nmap or fallback socket/subprocess scanning.
-Backend Dev B / Dev A integration for network reconnaissance.
-"""
-
-import subprocess
-import shutil
+"""nmap wrapper (Dev B). Fixed, safe argument sets only; no caller-supplied flags."""
+import os
+import re
 import socket
-from typing import Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
-def run_nmap_scan(action: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Execute nmap scan based on action ("port_scan" or "service_scan").
-    Returns structured results per schemas.md.
-    """
-    target = params.get("target") or params.get("host")
-    if not target:
-        return {"status": "error", "error": "No target specified for nmap scan", "result": None}
+import nmap
 
-    # Clean target (remove http:// if present)
-    if "://" in target:
-        target = target.split("://")[1].split("/")[0]
-    if ":" in target and not target.startswith("["):
-        target = target.split(":")[0]
+ARGS = {"port_scan": "-sT -Pn -T4", "service_scan": "-sT -Pn -sV -T4"}
+PORTS_RE = re.compile(r"^\d{1,5}(-\d{1,5})?(,\d{1,5}(-\d{1,5})?)*$")
+MAX_PORTS = 65535
 
-    ports = params.get("ports", "21,22,80,443,3000,8080,8443")
 
-    # Check if nmap executable is available
-    nmap_path = shutil.which("nmap")
+def host_of(target):
+    t = str(target or "").strip()
+    return urlparse(t if "://" in t else f"//{t}").hostname or ""
 
-    if nmap_path:
-        try:
-            # Run real nmap
-            cmd = [nmap_path, "-p", str(ports), "-T4"]
-            if action == "service_scan":
-                cmd.append("-sV")
-            cmd.append(target)
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode != 0:
-                return {
-                    "status": "error",
-                    "error": f"Nmap exited with code {result.returncode}: {result.stderr}",
-                    "result": None
-                }
+def parse_ports(spec):
+    spec = str(spec).replace(" ", "")
+    if not PORTS_RE.match(spec):
+        raise ValueError(f"invalid ports '{spec}' (use e.g. '80,443' or '1-1000')")
+    ports = set()
+    for part in spec.split(","):
+        lo, _, hi = part.partition("-")
+        lo, hi = int(lo), int(hi or lo)
+        if not 1 <= lo <= hi <= MAX_PORTS:
+            raise ValueError(f"invalid port range '{part}'")
+        ports.update(range(lo, hi + 1))
+    return sorted(ports)
 
-            # Parse nmap text output into structured ports list
-            parsed_ports = []
-            for line in result.stdout.splitlines():
-                if "/tcp" in line and "open" in line:
-                    parts = line.split()
-                    port_proto = parts[0]
-                    port_num = int(port_proto.split("/")[0])
-                    state = parts[1]
-                    service = parts[2] if len(parts) > 2 else "unknown"
-                    version = " ".join(parts[3:]) if len(parts) > 3 else None
 
-                    parsed_ports.append({
-                        "port": port_num,
-                        "protocol": "tcp",
-                        "state": state,
-                        "service": service,
-                        "version": version
-                    })
+def _socket_scan(addresses, ports, timeout=1.0):
+    def is_open(job):
+        addr, port = job
+        with socket.socket(socket.AF_INET6 if ":" in addr else socket.AF_INET) as s:
+            s.settimeout(timeout)
+            return s.connect_ex((addr, port)) == 0
+    jobs = [(a, p) for a in addresses for p in ports]
+    with ThreadPoolExecutor(100) as ex:
+        return [{"address": a, "port": p, "service": "unknown", "version": None}
+                for (a, p), ok in zip(jobs, ex.map(is_open, jobs)) if ok]
 
-            return {
-                "status": "success",
-                "result": {
-                    "target": target,
-                    "raw_output": result.stdout,
-                    "ports": parsed_ports
-                },
-                "error": None
-            }
 
-        except subprocess.TimeoutExpired:
-            return {"status": "error", "error": "Nmap scan timed out after 30s", "result": None}
-        except Exception as e:
-            return {"status": "error", "error": f"Nmap execution error: {str(e)}", "result": None}
-    else:
-        # Fallback Python socket scan if nmap binary is not installed in lab container
-        open_ports = []
-        port_list = []
-        for p_range in str(ports).split(","):
-            if "-" in p_range:
-                start, end = map(int, p_range.split("-"))
-                port_list.extend(range(start, end + 1))
-            else:
-                try:
-                    port_list.append(int(p_range.strip()))
-                except ValueError:
-                    pass
-
-        for p in port_list[:50]:  # limit for fallback
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.5)
-                res = s.connect_ex((target, p))
-                s.close()
-                if res == 0:
-                    service = "http" if p in (80, 443, 3000, 8080) else "ssh" if p == 22 else "unknown"
-                    open_ports.append({
-                        "port": p,
-                        "protocol": "tcp",
-                        "state": "open",
-                        "service": service,
-                        "version": "fallback-socket-scan"
-                    })
-            except Exception:
-                pass
-
-        return {
-            "status": "success",
-            "result": {
-                "target": target,
-                "note": "Fallback socket scan (nmap binary not found)",
-                "ports": open_ports
-            },
-            "error": None
-        }
+def run(action, params, addresses=None):
+    """Scan `addresses` (the IPs the registry checked); `target` is only the label reported back."""
+    host = host_of(params.get("target") or params.get("host") or params.get("url"))
+    if not host:
+        raise ValueError("params.target is required")
+    v4 = [a for a in addresses or [host] if ":" not in a]
+    scan, ipv6 = (v4, False) if v4 else (list(addresses or [host]), True)
+    spec = str(params.get("ports") or "1-1000").replace(" ", "")
+    ports = parse_ports(spec)
+    try:
+        scanner = nmap.PortScanner()
+    except nmap.PortScannerError:  # nmap binary missing: honest TCP-connect fallback
+        return {"target": host, "addresses": scan, "open_ports": _socket_scan(scan, ports),
+                "note": "nmap binary not found; TCP connect fallback, no service/version detection"}
+    data = scanner.scan(" ".join(scan), spec, arguments=ARGS[action] + (" -6" if ipv6 else ""),
+                        timeout=int(os.getenv("NMAP_TIMEOUT", "300")))
+    open_ports = []
+    for h in scanner.all_hosts():
+        for port, info in sorted(scanner[h].get("tcp", {}).items()):
+            if info.get("state") == "open":
+                version = " ".join(filter(None, (info.get("product"), info.get("version"), info.get("extrainfo"))))
+                open_ports.append({"address": h, "port": port, "service": info.get("name") or "unknown",
+                                   "version": version or None})
+    return {"target": host, "addresses": scan, "open_ports": open_ports, "command": data["nmap"]["command_line"]}

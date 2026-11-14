@@ -1,122 +1,111 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react";
+import Setup from "./screens/Setup";
+import SetupPhone from "./screens/SetupPhone";
+import LiveRun from "./screens/LiveRun";
+import LiveRunPhone from "./screens/LiveRunPhone";
+import Report from "./screens/Report";
+import { mockEvents, mockReport } from "./mock/mockData";
+import { useIsMobile } from "./hooks/useIsMobile";
+
+const INITIAL_SCAN_CONFIG = {
+  target: "",
+  objective: "",
+  scopeFile: null,
+};
 
 function App() {
-  const [count, setCount] = useState(0)
+  const isMobile = useIsMobile();
+  const [currentScreen, setCurrentScreen] = useState("setup");
+  const [scanConfig, setScanConfig] = useState(INITIAL_SCAN_CONFIG);
+
+  // Setup calls this with { target, objective, scopeFile }.
+  const handleStart = (config = {}) => {
+    setScanConfig({
+      ...INITIAL_SCAN_CONFIG,
+      ...config,
+    });
+    setCurrentScreen("live");
+  };
+
+  const handleAbort = () => {
+    const confirmed = window.confirm(
+      "End this demo run and return to assessment setup?"
+    );
+
+    if (confirmed) {
+      setCurrentScreen("setup");
+    }
+  };
+
+  const handleNewAssessment = () => {
+    setScanConfig(INITIAL_SCAN_CONFIG);
+    setCurrentScreen("setup");
+  };
+
+  // Keep sample findings, but show target and objective entered in Setup.
+  const reportData = {
+    ...mockReport,
+    target: scanConfig.target?.trim() || mockReport.target,
+    objective: scanConfig.objective?.trim() || mockReport.objective,
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="min-h-screen bg-[#07090D]">
+      {currentScreen === "setup" && (
+        isMobile ? (
+          <SetupPhone onStart={handleStart} />
+        ) : (
+          <Setup onStart={handleStart} />
+        )
+      )}
 
-      <div className="ticks"></div>
+      {currentScreen === "live" && (
+        <>
+          {isMobile ? (
+            <LiveRunPhone
+              target={scanConfig.target}
+              events={mockEvents}
+              onAbort={handleAbort}
+            />
+          ) : (
+            <LiveRun
+              target={scanConfig.target}
+              events={mockEvents}
+              onAbort={handleAbort}
+            />
+          )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-700/80 bg-slate-950/95 px-4 py-3 backdrop-blur">
+            <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setCurrentScreen("setup")}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700"
+              >
+                Back to Setup
+              </button>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+              <button
+                type="button"
+                onClick={() => setCurrentScreen("report")}
+                className="rounded-lg bg-cyan-400 px-5 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
+              >
+                View Report <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {currentScreen === "report" && (
+        <Report
+          report={reportData}
+          onBack={() => setCurrentScreen("live")}
+          onNewAssessment={handleNewAssessment}
+        />
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;

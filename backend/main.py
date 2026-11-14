@@ -47,7 +47,7 @@ async def start_agent_run(
     # Initialize and start the agent loop
     agent = AgentLoop(
         target=target,
-        scope_file=scope_file or "scope.txt",
+        scope_file=scope_file or "backend/scope.json",
         objective=objective,
         max_steps=max_steps
     )
@@ -78,7 +78,7 @@ async def start_agent_run(
 async def run_agent_loop(run_id: str, agent: AgentLoop):
     """Run the agent loop in the background and store results."""
     try:
-        async for update in agent.run_step():
+        async for update in agent.run():
             if run_id in reports_db:
                 reports_db[run_id]["steps_completed"] = update.get("step", 0)
                 reports_db[run_id]["run_log"].append(update)

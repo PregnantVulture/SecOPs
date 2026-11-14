@@ -1,0 +1,111 @@
+export const mockEvents = [
+  {
+    time: "00:01",
+    tool: "SYSTEM",
+    message: "Security assessment initialized. Loading scope file and objective.",
+    status: "success",
+  },
+  {
+    time: "00:04",
+    tool: "NMAP",
+    message: "Host discovery started on 10.10.1.5.",
+    status: "running",
+  },
+  {
+    time: "00:09",
+    tool: "NMAP",
+    message: "Discovered open ports: 80 (http, Apache 2.4.29), 22 (ssh, OpenSSH 7.6p1).",
+    status: "success",
+  },
+  {
+    time: "00:12",
+    tool: "AGENT",
+    message: "Analyzing discovered services. Apache 2.4.29 flagged for further research.",
+    status: "running",
+  },
+  {
+    time: "00:16",
+    tool: "TAVILY",
+    message: "Researched known vulnerabilities for Apache 2.4.29. Found reference to CVE-2021-41773 (path traversal).",
+    status: "success",
+  },
+  {
+    time: "00:22",
+    tool: "NUCLEI",
+    message: "Running targeted scan against http://10.10.1.5:80 using path-traversal templates.",
+    status: "running",
+  },
+  {
+    time: "00:29",
+    tool: "NUCLEI",
+    message: "Confirmed path traversal vulnerability on /cgi-bin/ endpoint.",
+    status: "success",
+  },
+  {
+    time: "00:31",
+    tool: "SCOPE",
+    message: "Attempted pivot to 10.10.1.99 — host not present in authorized scope list.",
+    status: "blocked",
+  },
+  {
+    time: "00:33",
+    tool: "AGENT",
+    message: "Out-of-scope attempt discarded. Continuing within authorized hosts only.",
+    status: "running",
+  },
+  {
+    time: "00:36",
+    tool: "SYSTEM",
+    message: "Objective achieved: vulnerabilities identified and documented.",
+    status: "success",
+  },
+];
+
+export const mockReport = {
+  target: "10.10.1.5",
+  objective: "Identify and document web application vulnerabilities",
+  objective_status: "completed",
+  start_time: "2026-11-11T15:00:00Z",
+  end_time: "2026-11-11T15:00:36Z",
+  total_steps: 10,
+  findings: [
+    {
+      id: "F-001",
+      title: "Path Traversal via Apache 2.4.29 (CVE-2021-41773)",
+      severity: "critical",
+      evidence: "Request to /cgi-bin/../../../../etc/passwd returned server filesystem contents.",
+      affected_host: "10.10.1.5",
+      affected_service: "http:80",
+      remediation: "Upgrade Apache to 2.4.51 or later. Disable CGI scripts if not required.",
+      discovered_at_step: 7,
+    },
+    {
+      id: "F-002",
+      title: "Missing Security Headers",
+      severity: "medium",
+      evidence: "Response from http://10.10.1.5:80 lacks Content-Security-Policy and X-Frame-Options headers.",
+      affected_host: "10.10.1.5",
+      affected_service: "http:80",
+      remediation: "Configure the web server to send standard security headers on all responses.",
+      discovered_at_step: 6,
+    },
+    {
+      id: "F-003",
+      title: "Outdated SSH Service Banner Disclosure",
+      severity: "low",
+      evidence: "SSH banner reveals OpenSSH 7.6p1, which is outdated and discloses version information.",
+      affected_host: "10.10.1.5",
+      affected_service: "ssh:22",
+      remediation: "Update OpenSSH to the latest stable release and suppress version banners where possible.",
+      discovered_at_step: 3,
+    },
+  ],
+  scope_violations: [
+    {
+      attempted_target: "10.10.1.99",
+      step: 8,
+      reason: "10.10.1.99 is not listed in the authorized scope file.",
+    },
+  ],
+  summary: "1 critical, 1 medium, and 1 low-severity vulnerability found. 1 out-of-scope attempt was detected and blocked.",
+};
