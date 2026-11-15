@@ -1,0 +1,17 @@
+{
+  "allowed_hosts": ["localhost", "127.0.0.1", "::1", "juice-shop"],
+  "allowed_cidrs": ["10.10.0.0/24", "127.0.0.0/8", "::1/128"],
+  "local_lab_hosts": ["localhost", "juice-shop"],
+  "local_lab_cidrs": ["10.10.0.0/24", "127.0.0.0/8", "::1/128"],
+  "allowed_ports": [3000, 80, 8080, 443],
+  "allowed_actions": [
+    "nmap:port_scan",
+    "nmap:service_scan",
+    "nuclei:scan",
+    "zap:spider",
+    "zap:active_scan",
+    "zap:alerts",
+    "tavily:research"
+  ],
+  "allow_multi_host": false
+}

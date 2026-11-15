@@ -1,0 +1,7 @@
+# SecOPs Authorized Scope
+localhost
+127.0.0.1
+juice-shop
+127.0.0.0/8
+allowed_ports: 3000, 80, 8080, 443
+allowed_actions: nmap:port_scan, nmap:service_scan, zap:spider, zap:active_scan, zap:alerts, tavily:research
