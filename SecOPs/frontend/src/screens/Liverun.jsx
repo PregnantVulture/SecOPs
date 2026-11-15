@@ -1,3 +1,4 @@
+import TechFooter from '../components/TechFooter';
 import { useLayoutEffect, useRef } from "react";
 import { Activity, ShieldAlert, Terminal } from "lucide-react";
 
@@ -261,6 +262,7 @@ export default function LiveRun({
           </div>
         </aside>
       </main>
+      <TechFooter />
     </div>
   );
 }

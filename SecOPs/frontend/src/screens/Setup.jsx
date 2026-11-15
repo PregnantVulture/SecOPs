@@ -1,3 +1,4 @@
+import TechFooter from '../components/TechFooter';
 import { useState, useRef } from "react";
 import { Upload, X, ArrowRight, Shield } from "lucide-react";
 
@@ -176,6 +177,7 @@ export default function Setup({ onStart }) {
           <span>Only assess systems you are authorized to test.</span>
         </footer>
       </main>
+      <TechFooter />
     </div>
   );
 }

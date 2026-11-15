@@ -1,3 +1,4 @@
+import TechFooter from '../components/TechFooter';
 import { useState } from "react";
 import { Shield, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, Terminal, Lock } from "lucide-react";
 
@@ -310,6 +311,7 @@ export default function Report({
           </button>
         </section>
       </main>
+      <TechFooter />
     </div>
   );
 }
