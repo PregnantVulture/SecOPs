@@ -94,5 +94,5 @@ SecOP is built strictly for use in authorized, isolated lab environments. Scanne
 - Sneha Goel — Setup & report UI (frontend)
 
 
-[Add license if required by hackathon rules]
+
 
