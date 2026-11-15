@@ -88,10 +88,10 @@ SecOP is built strictly for use in authorized, isolated lab environments. Scanne
 
 ## Team
 
-- [Name] — Agent core / scope enforcement
-- [Name] — Tools & research integration
-- [Name] — Live agent view (frontend)
-- [Name] — Setup & report UI (frontend)
+- Arshdeep Singh Gulati — Agent core / scope enforcement
+- Ishan Bahuguna — Tools & research integration
+- Preesha Jain — Live agent view (frontend)
+- Sneha Goel — Setup & report UI (frontend)
 
 ## License
 
