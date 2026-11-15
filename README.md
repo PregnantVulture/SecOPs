@@ -38,7 +38,7 @@ Report generator → findings + severity + evidence + remediation
 ## Tech Stack
 
 - **Backend**: Python, FastAPI
-- **Agent/LLM**: Bifrost (AI gateway), Gemini / Groq
+- **Agent/LLM**: Bifrost (AI gateway) → OmniRoute (multi-provider routing),(Gemini / Groq)
 - **Security tools**: OWASP ZAP, nmap, ProjectDiscovery Nuclei (manual)
 - **Research**: Tavily API
 - **Frontend**: React + Vite, Tailwind CSS
