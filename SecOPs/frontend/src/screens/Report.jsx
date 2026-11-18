@@ -57,6 +57,11 @@ export default function Report({
               <h1 className="text-xl font-medium text-white">SecOP <span className="text-[var(--color-text-2)]">/</span> Report</h1>
             </div>
             <p className="text-sm text-[var(--color-text-3)]">Security Assessment Summary</p>
+            {report.is_demo && (
+              <span className="mt-2 inline-flex rounded border border-[var(--color-accent)]/40 px-2 py-1 font-mono text-[10px] font-semibold uppercase text-[var(--color-accent)]">
+                Demo data · simulated results
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-2)]">
@@ -181,6 +186,16 @@ export default function Report({
                           {finding.affected_service}
                         </span>
                       )}
+                      {finding.endpoint && (
+                        <span className="max-w-full break-all rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] px-2 py-0.5 font-mono text-xs text-[var(--color-text)]">
+                          {finding.endpoint}
+                        </span>
+                      )}
+                      {finding.cwe && (
+                        <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] px-2 py-0.5 font-mono text-xs text-[var(--color-text-2)]">
+                          {finding.cwe}
+                        </span>
+                      )}
                     </div>
                     <h3 className="text-base font-medium text-[var(--color-text)]">{finding.title}</h3>
                   </div>
@@ -200,9 +215,9 @@ export default function Report({
                           <div className="flex items-center justify-between text-xs text-[var(--color-text-2)] mb-2">
                             <span className="flex items-center gap-2">
                               <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                              Exploit payload evidence
+                              {report.is_demo ? "Simulated evidence" : "Evidence"}
                             </span>
-                            <span className="text-[var(--color-text-3)]">REPRODUCIBLE</span>
+                            <span className="text-[var(--color-text-3)]">{report.is_demo ? "DEMO ONLY" : "REPRODUCIBLE"}</span>
                           </div>
                           <pre className="text-xs text-[var(--color-text)] whitespace-pre-wrap font-mono leading-relaxed">
                             {finding.evidence}

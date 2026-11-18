@@ -13,11 +13,14 @@ import { Activity, ShieldAlert, Terminal } from "lucide-react";
 export default function LiveRun({
   target = "https://example.com",
   events = [],
+  isDemo = false,
   onAbort
 }) {
   const safeEvents = Array.isArray(events) ? events : [];
   const activeCount = safeEvents.filter((e) => e.status === "running").length;
   const blockedCount = safeEvents.filter((e) => e.status === "blocked").length;
+  const isCompleted = safeEvents.some((e) => e.tool === "SYSTEM" && e.message.includes("Assessment complete"));
+
   const scrollRef = useRef(null);
   const latestToolEvents = new Map();
 
@@ -71,7 +74,7 @@ export default function LiveRun({
       default:
         return (
           <span className="status-label status-success">
-            Success
+            {isCompleted ? "Completed" : "Success"}
           </span>
         );
     }
@@ -87,8 +90,8 @@ export default function LiveRun({
               <Terminal strokeWidth={2} />
             </span>
             <div>
-              <p className="hud-kicker">SecOP / autonomous run</p>
-              <h1 className="text-base font-semibold tracking-wide text-white">Live assessment</h1>
+              <p className="hud-kicker">SecOP / {isDemo ? "simulated run" : "autonomous run"}</p>
+              <h1 className="text-base font-semibold tracking-wide text-white">{isDemo ? "Demo assessment" : "Live assessment"}</h1>
             </div>
           </div>
 
@@ -102,9 +105,9 @@ export default function LiveRun({
                 </span>
               </div>
             )}
-            <span className="hidden items-center gap-2 rounded-full border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 px-3 py-1 font-mono text-[10px] font-semibold tracking-wider text-[var(--color-accent)] sm:inline-flex">
+            <span className={`hidden items-center gap-2 rounded-full border ${isCompleted ? 'border-green-500/30 bg-green-500/5 text-green-500' : 'border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 text-[var(--color-accent)]'} px-3 py-1 font-mono text-[10px] font-semibold tracking-wider sm:inline-flex`}>
               <span className="scope-dot" aria-hidden="true" />
-              LIVE
+              {isCompleted ? "COMPLETED" : "LIVE"}
             </span>
             <button
               type="button"
@@ -185,8 +188,8 @@ export default function LiveRun({
           <div className="hud-panel p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-medium text-[var(--color-text-2)] uppercase tracking-wide">Target</h3>
-              <span className="badge badge-success">
-                Active
+              <span className={`badge ${isCompleted ? 'badge-success' : 'badge-success'}`}>
+                {isCompleted ? 'Completed' : 'Active'}
               </span>
             </div>
             <div className="mb-3 rounded border border-[var(--color-border)] bg-[#0b0e13] p-3">
@@ -220,7 +223,7 @@ export default function LiveRun({
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Active</div>
-                  <div className="stat-value success">{activeCount}</div>
+                  <div className="stat-value success">{isCompleted ? 0 : activeCount}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Blocked</div>
@@ -242,9 +245,12 @@ export default function LiveRun({
                 </p>
               ) : (
                 Array.from(latestToolEvents.entries()).map(([toolName, event]) => {
-                  const statusColor = event.status === "running"
+                  let status = event.status;
+                  if (isCompleted && status === "running") status = "success";
+
+                  const statusColor = status === "running"
                     ? "text-[var(--color-info)]"
-                    : event.status === "failed" || event.status === "blocked"
+                    : status === "failed" || status === "blocked"
                       ? "text-[var(--color-danger)]"
                       : "text-[var(--color-success)]";
 
@@ -252,7 +258,7 @@ export default function LiveRun({
                     <div key={toolName} className="flex items-center justify-between gap-3 rounded border border-[var(--color-border)]/70 bg-[#0b0e13]/60 px-3 py-2">
                       <span className="font-mono text-xs font-semibold text-[var(--color-text)]">{toolName}</span>
                       <span className={`font-mono text-[10px] uppercase tracking-wider ${statusColor}`}>
-                        {event.status}
+                        {status}
                       </span>
                     </div>
                   );

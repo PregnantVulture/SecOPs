@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Upload, ArrowRight, Shield } from "lucide-react";
 
-export default function SetupPhone({ onStart }) {
+export default function SetupPhone({ onStart, onDemo }) {
   const [target, setTarget] = useState("");
   const [objective, setObjective] = useState("");
   const [scopeFile, setScopeFile] = useState(null);
@@ -164,6 +164,13 @@ export default function SetupPhone({ onStart }) {
               >
                 <span className="font-mono tracking-wide">Start Assessment</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                onClick={onDemo}
+                className="mt-2 h-10 w-full rounded border border-[var(--color-border)] text-xs font-mono text-[var(--color-text-2)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              >
+                View demo assessment
               </button>
             </div>
           </form>

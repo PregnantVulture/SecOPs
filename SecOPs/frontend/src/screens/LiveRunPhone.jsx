@@ -12,6 +12,7 @@ export default function LiveRunPhone({
   target = "https://example.com",
   events = [],
   nucleiBusy = false,
+  isDemo = false,
   onAbort
 }) {
   const activeCount = events.filter((e) => e.status === 'running').length;
@@ -43,9 +44,9 @@ export default function LiveRunPhone({
               <div className="flex items-center gap-1.5 leading-none">
                 <span className="font-mono text-xs font-bold tracking-wider text-[var(--color-text-2)]">SecOP</span>
                 <span className="text-[10px] text-[var(--color-text-3)] font-mono">/</span>
-                <span className="font-mono text-xs font-bold tracking-wider text-[var(--color-accent)] uppercase">LIVE RUN</span>
+                <span className="font-mono text-xs font-bold tracking-wider text-[var(--color-accent)] uppercase">{isDemo ? "DEMO RUN" : "LIVE RUN"}</span>
               </div>
-              <p className="font-mono text-[9px] text-[var(--color-text-3)] tracking-tight mt-0.5">LOCAL LAB TELEMETRY</p>
+              <p className="font-mono text-[9px] text-[var(--color-text-3)] tracking-tight mt-0.5">{isDemo ? "SIMULATED DATA · NO LIVE SCAN" : "LOCAL LAB TELEMETRY"}</p>
             </div>
           </div>
 

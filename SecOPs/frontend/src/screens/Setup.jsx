@@ -2,7 +2,7 @@ import TechFooter from '../components/TechFooter';
 import { useState, useRef } from "react";
 import { Upload, X, ArrowRight, Shield } from "lucide-react";
 
-export default function Setup({ onStart }) {
+export default function Setup({ onStart, onDemo }) {
   const [target, setTarget] = useState("");
   const [objective, setObjective] = useState("");
   const [scopeFile, setScopeFile] = useState(null);
@@ -168,6 +168,13 @@ export default function Setup({ onStart }) {
               <span aria-hidden="true">◇</span>
               Start Assessment
               <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
+              onClick={onDemo}
+              className="w-full rounded border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-2)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            >
+              View demo assessment
             </button>
           </form>
         </section>

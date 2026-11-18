@@ -5,6 +5,7 @@ import LiveRun from "./screens/Liverun";
 import LiveRunPhone from "./screens/LiveRunPhone";
 import Report from "./screens/Report";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { mockEvents, mockReport } from "./mock/mockData";
 
 const INITIAL_SCAN_CONFIG = {
   target: "",
@@ -24,6 +25,7 @@ function App() {
   const [reportData, setReportData] = useState(null);
   const [runId, setRunId] = useState(null);
   const [nucleiBusy, setNucleiBusy] = useState(false);
+  const [isDemoRun, setIsDemoRun] = useState(false);
   const wsRef = useRef(null);
 
   // Setup calls this with { target, objective, scopeFile }
@@ -37,6 +39,7 @@ function App() {
     setReportData(null);
     setRunId(null);
     setNucleiBusy(false);
+    setIsDemoRun(false);
 
     let scopeText = null;
     if (scopeFile) {
@@ -78,6 +81,29 @@ function App() {
       // Fallback to setup
       setCurrentScreen("setup");
     }
+  };
+
+  const handleStartDemo = () => {
+    setScanConfig({ target: mockReport.target, objective: mockReport.objective, scopeFile: null });
+    setEvents([]); // Start empty
+    setReportData(null);
+    setRunId(null);
+    setNucleiBusy(false);
+    setIsDemoRun(true);
+    setCurrentScreen("live");
+
+    // Stream mock events
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i >= mockEvents.length) {
+        clearInterval(interval);
+        return;
+      }
+
+      const nextEvent = mockEvents[i];
+      setEvents(prev => [...prev, nextEvent]);
+      i++;
+    }, 2000);
   };
 
   const connectWebSocket = (rid) => {
@@ -265,11 +291,12 @@ function App() {
     setReportData(null);
     setRunId(null);
     setNucleiBusy(false);
+    setIsDemoRun(false);
     setCurrentScreen("setup");
   };
 
   // Final report payload passed to Report component
-  const finalReport = reportData || {
+  const finalReport = (isDemoRun ? mockReport : reportData) || {
     target: scanConfig.target || "localhost",
     objective: scanConfig.objective || "Security assessment",
     objective_status: "completed",
@@ -287,9 +314,9 @@ function App() {
     <div className="min-h-screen bg-[var(--color-bg)]">
       {currentScreen === "setup" && (
         isMobile ? (
-          <SetupPhone onStart={handleStart} />
+          <SetupPhone onStart={handleStart} onDemo={handleStartDemo} />
         ) : (
-          <Setup onStart={handleStart} />
+          <Setup onStart={handleStart} onDemo={handleStartDemo} />
         )
       )}
 
@@ -300,12 +327,14 @@ function App() {
               target={scanConfig.target}
               events={events}
               nucleiBusy={nucleiBusy}
+              isDemo={isDemoRun}
               onAbort={handleAbort}
             />
           ) : (
             <LiveRun
               target={scanConfig.target}
               events={events}
+              isDemo={isDemoRun}
               onAbort={handleAbort}
             />
           )}
